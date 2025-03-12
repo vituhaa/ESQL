@@ -1,0 +1,289 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+EXEC SQL INCLUDE sqlca;
+
+/* Объявление функций */
+void call_create_db_procedure(const char *dbname);
+void call_drop_db_procedure(const char *dbname);
+void call_truncate_table_procedure();
+void call_insert_data_procedure(const char *name);
+void call_search_by_name_procedure(const char *name);
+void call_update_record_procedure(const char *old_name, const char *new_name);
+void call_delete_by_name_procedure(const char *name);
+void call_display_patients_procedure();
+void list_databases();
+
+int main() 
+{
+    EXEC SQL BEGIN DECLARE SECTION;
+    char dbname[] = "postgres";
+    char username[] = "postgres";
+    char password[] = "1234";
+    EXEC SQL END DECLARE SECTION;
+
+    EXEC SQL CONNECT TO :dbname USER :username USING :password;
+
+    if (sqlca.sqlcode < 0) 
+    {
+        printf("Connection failed: %s\n", sqlca.sqlerrm.sqlerrmc);
+        return 1;
+    }
+
+    printf("Connected to PostgreSQL successfully!\n");
+
+    int choice;
+    char dbname_input[50];
+    char name[100], new_name[100];
+
+    while (1) 
+    {
+        printf("\nDatabase Management\n");
+        printf("1. Create Database\n");
+        printf("2. Drop Database\n");
+        printf("3. Truncate Table\n");
+        printf("4. Insert Data\n");
+        printf("5. Search by Name\n");
+        printf("6. Update Record\n");
+        printf("7. Delete Record by Name\n");
+        printf("8. Display Table Data\n");  // Новый пункт в меню
+	printf("9. Display data bases\n");
+	printf("10. Exit\n");  // Обновляем нумерацию
+        printf("Enter choice: ");
+        scanf("%d", &choice);
+
+        if (choice == 10) 
+        {
+            break;
+        }
+
+        switch (choice) 
+        {
+            case 1:
+                printf("Enter database name: ");
+                scanf("%s", dbname_input);
+                call_create_db_procedure(dbname_input);
+                break;
+            case 2:
+                printf("Enter database name to drop: ");
+                scanf("%s", dbname_input);
+                call_drop_db_procedure(dbname_input);
+                break;
+            case 3:
+                call_truncate_table_procedure();
+                break;
+            case 4:
+                printf("Enter name to insert: ");
+                scanf("%s", name);
+                call_insert_data_procedure(name);
+                break;
+            case 5:
+                printf("Enter name to search: ");
+                scanf("%s", name);
+                call_search_by_name_procedure(name);
+                break;
+            case 6:
+                printf("Enter old name: ");
+                scanf("%s", name);
+                printf("Enter new name: ");
+                scanf("%s", new_name);
+                call_update_record_procedure(name, new_name);
+                break;
+            case 7:
+                printf("Enter name to delete: ");
+                scanf("%s", name);
+                call_delete_by_name_procedure(name);
+                break;
+	    case 8:
+        	call_display_patients_procedure();
+        	break;
+	    case 9:
+		list_databases();
+            default:
+                printf("Invalid choice\n");
+        }
+    }
+
+    EXEC SQL DISCONNECT;
+    return 0;
+}
+
+void call_create_db_procedure(const char *dbname) 
+{
+    EXEC SQL BEGIN DECLARE SECTION;
+    char p_dbname[100];
+    EXEC SQL END DECLARE SECTION;
+
+    strncpy(p_dbname, dbname, sizeof(p_dbname));
+
+    /* Вызываем хранимую процедуру напрямую */
+    EXEC SQL CALL create_db_procedure_00(:p_dbname);
+
+    if (sqlca.sqlcode < 0) 
+    {
+        printf("Error creating database: %s\n", sqlca.sqlerrm.sqlerrmc);
+    } 
+    else 
+    {
+        printf("Database '%s' created successfully.\n", dbname);
+    }
+}
+
+
+
+
+
+/* Функция вызова хранимой процедуры для удаления БД */
+void call_drop_db_procedure(const char *dbname) 
+{
+    char command[256];
+
+    // Запускаем команду DROP DATABASE через system()
+    snprintf(command, sizeof(command), "psql -U postgres -c \"DROP DATABASE IF EXISTS %s;\"", dbname);
+
+    int status = system(command);
+
+    if (status == 0) 
+    {
+        printf("Database '%s' dropped successfully.\n", dbname);
+    } 
+    else 
+    {
+        printf("Error: Could not drop database '%s'.\n", dbname);
+    }
+}
+
+/* Функция вызова хранимой процедуры для очистки таблицы */
+void call_truncate_table_procedure() 
+{
+    EXEC SQL EXECUTE IMMEDIATE "CALL truncate_table_procedure_()";
+
+    if (sqlca.sqlcode < 0) 
+    {
+        printf("Error: %s\n", sqlca.sqlerrm.sqlerrmc);
+    } 
+    else 
+    {
+        printf("Table truncated successfully.\n");
+    }
+}
+
+/* Функция вызова хранимой процедуры для вставки данных */
+void call_insert_data_procedure(const char *name) 
+{
+    EXEC SQL BEGIN DECLARE SECTION;
+    char sql_query[200];
+    EXEC SQL END DECLARE SECTION;
+
+    snprintf(sql_query, sizeof(sql_query), "CALL insert_data_procedure_('%s')", name);
+
+    EXEC SQL EXECUTE IMMEDIATE :sql_query;
+
+    if (sqlca.sqlcode < 0) 
+    {
+        printf("Error: %s\n", sqlca.sqlerrm.sqlerrmc);
+    } 
+    else 
+    {
+        printf("Data inserted successfully.\n");
+    }
+}
+
+/* Функция вызова хранимой процедуры для поиска по имени */
+void call_search_by_name_procedure(const char *name) 
+{
+    EXEC SQL BEGIN DECLARE SECTION;
+    char sql_query[200];
+    EXEC SQL END DECLARE SECTION;
+
+    snprintf(sql_query, sizeof(sql_query), "CALL search_by_name_procedure_('%s')", name);
+
+    EXEC SQL EXECUTE IMMEDIATE :sql_query;
+
+    if (sqlca.sqlcode < 0) 
+    {
+        printf("Error: %s\n", sqlca.sqlerrm.sqlerrmc);
+    } 
+}
+
+/* Функция вызова хранимой процедуры для обновления записи */
+void call_update_record_procedure(const char *old_name, const char *new_name) 
+{
+    EXEC SQL BEGIN DECLARE SECTION;
+    char sql_query[200];
+    EXEC SQL END DECLARE SECTION;
+
+    snprintf(sql_query, sizeof(sql_query), "CALL update_record_procedure_('%s', '%s')", old_name, new_name);
+
+    EXEC SQL EXECUTE IMMEDIATE :sql_query;
+
+    if (sqlca.sqlcode < 0) 
+    {
+        printf("Error: %s\n", sqlca.sqlerrm.sqlerrmc);
+    } 
+    else 
+    {
+        printf("Record updated successfully.\n");
+    }
+}
+
+/* Функция вызова хранимой процедуры для удаления записи по имени */
+void call_delete_by_name_procedure(const char *name) 
+{
+    EXEC SQL BEGIN DECLARE SECTION;
+    char sql_query[200];
+    EXEC SQL END DECLARE SECTION;
+
+    snprintf(sql_query, sizeof(sql_query), "CALL delete_by_name_procedure_('%s')", name);
+
+    EXEC SQL EXECUTE IMMEDIATE :sql_query;
+
+    if (sqlca.sqlcode < 0) 
+    {
+        printf("Error: %s\n", sqlca.sqlerrm.sqlerrmc);
+    } 
+    else 
+    {
+        printf("Record deleted successfully.\n");
+    }
+}
+
+
+void call_display_patients_procedure() 
+{
+    EXEC SQL EXECUTE IMMEDIATE "CALL display_patients_();";
+
+    if (sqlca.sqlcode < 0) 
+    {
+        printf("Error displaying patients: %s\n", sqlca.sqlerrm.sqlerrmc);
+    } 
+    else 
+    {
+        printf("Patients list displayed successfully.\n");
+    }
+}
+
+
+void list_databases() 
+{
+    EXEC SQL BEGIN DECLARE SECTION;
+    char dbname[100];
+    EXEC SQL END DECLARE SECTION;
+
+    EXEC SQL DECLARE db_cursor CURSOR FOR 
+        SELECT datname FROM pg_database;
+
+    EXEC SQL OPEN db_cursor;
+    
+    printf("List of databases:\n");
+    while (1) 
+    {
+        EXEC SQL FETCH NEXT FROM db_cursor INTO :dbname;
+        if (sqlca.sqlcode != 0) break;
+        printf("- %s\n", dbname);
+    }
+
+    EXEC SQL CLOSE db_cursor;
+}
+
