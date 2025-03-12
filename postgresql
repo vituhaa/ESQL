@@ -1,0 +1,140 @@
+CREATE EXTENSION IF NOT EXISTS dblink;
+
+
+CREATE OR REPLACE PROCEDURE create_db_procedure_000(db_name TEXT)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    db_exists BOOLEAN;
+BEGIN
+    -- Подключение к postgres
+    PERFORM dblink_connect('my_conn', 'dbname=postgres user=postgres password=1234');
+
+    -- Проверяем, существует ли база данных
+    SELECT EXISTS (
+        SELECT FROM pg_database WHERE datname = db_name
+    ) INTO db_exists;
+
+    IF db_exists THEN
+        RAISE NOTICE 'Database "%" already exists.', db_name;
+    ELSE
+        -- Создаём базу данных с обработкой ошибки дубликата
+        BEGIN
+            PERFORM dblink_exec('my_conn', format('CREATE DATABASE %I', db_name));
+            RAISE NOTICE 'Database "%" created successfully.', db_name;
+        EXCEPTION 
+            WHEN duplicate_database THEN
+                RAISE NOTICE 'Database "%" already exists (race condition detected).', db_name;
+        END;
+    END IF;
+    
+    -- Отключаем dblink
+    PERFORM dblink_disconnect('my_conn');
+
+EXCEPTION 
+    WHEN OTHERS THEN
+        RAISE NOTICE 'Error creating database "%": %', db_name, SQLERRM;
+END $$;
+
+
+
+
+CREATE OR REPLACE PROCEDURE drop_database_procedure_(db_name TEXT)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    EXECUTE format('DROP DATABASE IF EXISTS %I', db_name);
+END $$;
+
+
+CREATE OR REPLACE PROCEDURE truncate_table_procedure_()
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    TRUNCATE TABLE patients RESTART IDENTITY;
+END $$;
+
+
+CREATE OR REPLACE PROCEDURE insert_data_procedure_(name TEXT)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO patients (full_name, appointment_date, diagnosis) 
+    VALUES (full_name, appointment_date, diagnosis);
+END $$;
+
+
+CREATE OR REPLACE PROCEDURE search_by_name_procedure_(p_name TEXT)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    found_name TEXT;
+    found_date DATE;
+    found_diagnosis TEXT;
+BEGIN
+    SELECT full_name, appointment_date, diagnosis 
+    INTO found_name, found_date, found_diagnosis 
+    FROM patients 
+    WHERE full_name = p_name 
+    LIMIT 1;
+
+    IF found_name IS NULL THEN
+        RAISE NOTICE 'Patient with name % not found', p_name;
+    ELSE
+        RAISE NOTICE 'Found: % | Date: % | Diagnosis: %', found_name, found_date, found_diagnosis;
+    END IF;
+END $$;
+
+
+
+CREATE OR REPLACE PROCEDURE update_record_procedure_(p_name TEXT, new_diagnosis TEXT)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE patients 
+    SET diagnosis = new_diagnosis 
+    WHERE full_name = p_name;
+
+    IF NOT FOUND THEN
+        RAISE NOTICE 'No records updated. Patient % not found.', p_name;
+    ELSE
+        RAISE NOTICE 'Diagnosis updated for %: %', p_name, new_diagnosis;
+    END IF;
+END $$;
+
+
+CREATE OR REPLACE PROCEDURE delete_by_name_procedure_(p_name  TEXT)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DELETE FROM patients WHERE full_name = p_name;
+
+    IF NOT FOUND THEN
+        RAISE NOTICE 'No patient found with name %', p_name;
+    ELSE
+        RAISE NOTICE 'Patient % deleted.', p_name;
+    END IF;
+END $$;
+
+
+CREATE OR REPLACE PROCEDURE display_patients_()
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN SELECT * FROM patients LOOP
+        RAISE NOTICE 'ID: % | Name: % | Date: % | Diagnosis: %', 
+                     r.patient_id, r.full_name, r.appointment_date, r.diagnosis;
+    END LOOP;
+END $$;
+
+
+
+CREATE TABLE IF NOT EXISTS patients_ (
+    patient_id SERIAL PRIMARY KEY,
+    full_name TEXT NOT NULL,
+    appointment_date DATE NOT NULL,
+    diagnosis TEXT NOT NULL
+);
+
